@@ -7,10 +7,7 @@
   <title>Robinson challenge</title>
 </head>
 <body>
-  <textarea class="basket" name="basket" placeholder="fill me up">1 imported bottle of perfume at 27.99
-    1 bottle of perfume at 18.99
-    1 packet of headache pills at 9.75
-    1 box of imported chocolates at 11.25</textarea>
+  <textarea class="basket" name="basket" rows=6 cols=30 placeholder="buy them"></textarea>
   <button class="print-btn">print</button>
   <p class="receipt">
     none
@@ -18,181 +15,141 @@
 </body>
 
 <script>
-  /** 
-   * internal monologue:
-   * 1. get goods
-   * 2. extract goods info
-   * 3. assertain whether is imported
-   * 4. recognize product category
-   * 5. mapping sales tax rate
-   * 6. get receipt text
-   * 7. print
-   */
-
-  (function () {
+  (function() {
     document.querySelector('.print-btn')
-      .addEventListener('click', function () {
-        // 1. get goods
-        var goods = document.querySelector('.basket').value;
+      .addEventListener('click', function() {
+        var basket = new Basket(document.querySelector('.basket').value);
 
-        // 7. print
-        document.querySelector('.receipt').innerHTML = getReceiptText(goods);
+        document.querySelector('.receipt').innerHTML = basket.getReceiptText();
       });
 
-    function getReceiptText(goodsText) {
-      // 2. extract goods info
-      var goods = extractGoodsInfo(goodsText);
+    var CATEGORY_LIST = [
+      {
+        categoryName: 'books',
+        products: [
+          'book',
+        ]
+      },
+      {
+        categoryName: 'food',
+        products: [
+          'chocolate bar',
+          'chocolates',
+        ]
+      },
+      {
+        categoryName: 'medical products',
+        products: [
+          'headache pills'
+        ]
+      },
+      {
+        categoryName: 'other', // :)
+        products: [
+          'music CD',
+          'perfume',
+        ]
+      },
+    ];
 
-      // 6. get receipt text
-      return getReceiptLines(goods).join('<br>');
-    }
+    var TAX_RATE_CONFIG = {
+      imported: {
+        rate: 0.05,
+        exemptions: []
+      },
+      sales: {
+        rate: 0.1,
+        exemptions: ['books', 'food', 'medical products']
+      }
+    };
 
-    function extractGoodsInfo(goodsText) {
-      return goodsText.split('\n')
-        .map(line => {
-          line = line.trim()
-          var words = line.split(' ');
-          var amount = +words.shift();
-          var price = +words.pop();
+    function Basket(goodsText) {
+      this.shoppingItems = goodsText.split('\n')
+        .map(shoppingItemText => new ShoppingItem(shoppingItemText))
+        .filter(item => item.isValid);
 
-          // validation
-          if (amount !== amount || price !== price || words.pop() !== 'at') {
-            return null;
-          }
+      this.getTax = function() {
+        return this.shoppingItems.reduce((pre, cur) => {
+          return pre + cur.getTax();
+        }, 0);
+      };
 
-          var importedIndex = words.indexOf('imported');
-          var isImported = importedIndex !== -1;
-          if (isImported) {
-            words.splice(importedIndex, 1);
-          }
-
-          var productName = words.join(' ');
-          var category = getCategory(productName);
-
-          // TODO: use Object here 
-          return {
-            amount,
-            price,
-            productName,
-            category,
-            isImported,
-          };
-        })
-        .filter(item => item);
-    }
-
-    function getCategory(productName) {
-      /**
-       * intenal monologue:
-       * 4.1. after 'of'
-       * 4.2. remove 'imported'
-       * 4.3. query category mapping
-       * 
-       * extract 4.1 and 4.2 as getProductName
-       */
-
-      var conciseName = getConciseName(productName);
-
-      return getProductCategory(conciseName);
-    }
-
-    function getReceiptLines(goods) {
-      /**
-       * internal monologue:
-       * 6.1. calculate tax 
-       * 6.2. calculate total
-       * 6.3. format goods item
-       * 6.4. join
-       */
-
-      goods.forEach(item => {
-        item.tax = round(calculateSalesTax(item) + calculateImportedTax(item));
-      });
-
-      var tax = goods.reduce((pre, cur) => {
-        /**
-         * internal monologue:
-         * there must be a tax rate config.
-         * 
-         * price calculation should be a method of goods object
-         */
-        return pre + cur.tax;
-      }, 0);
-
-      var total = goods.reduce((pre, cur) => {
-        return pre + cur.amount * cur.price + cur.tax;
-      }, 0);
-
-      var receiptLines = goods.map(item => {
-        var segments = [item.amount];
-        if (item.isImported) {
-          segments.push('imported');
-        }
-        segments.push(item.productName);
-
-        return `${segments.join(' ')}: ${money(item.price + item.tax)}`;
-      });
-      receiptLines.push(`Sales Taxes: ${money(tax)}`);
-      receiptLines.push(`Total: ${money(total)}`);
-      return receiptLines;
-    }
-
-    function getConciseName(productName) {
-      // 4.1. after 'of'
-      var nameWords = productName.split(' ');
-      var ofIndex = nameWords.indexOf('of');
-      if (ofIndex !== -1) {
-        nameWords = nameWords.slice(ofIndex + 1);
+      this.getTotal = function() {
+        return this.shoppingItems.reduce((pre, cur) => {
+          return pre + cur.getTotalPrice();
+        }, this.getTax());
       }
 
-      return nameWords.join(' ');
+      this.getReceiptText = function() {
+        var receiptLines = this.shoppingItems.map(item => item.getReceiptLine());
+        receiptLines.push(`Sales Taxes: ${money(this.getTax())}`);
+        receiptLines.push(`Total: ${money(this.getTotal())}`);
+        return receiptLines.join('<br>');
+      }
+    }
+
+    function ShoppingItem(shoppingItemText) {
+      shoppingItemText = shoppingItemText.trim();
+      var words = shoppingItemText.split(' ');
+      this.amount = +words.shift();
+      this.price = +words.pop();
+
+      var secondLastWordIsAt = words.pop() === 'at';
+      this.isValid = !isNaN(this.amount) && !isNaN(this.price) && secondLastWordIsAt;
+
+      var importedIndex = words.indexOf('imported');
+      this.isImported = importedIndex !== -1;
+      if (this.isImported) {
+        words.splice(importedIndex, 1);
+      }
+
+      this.productName = words.join(' ');
+
+      this.getConciseName = function() {
+        var nameWords = this.productName.split(' ');
+        var ofIndex = nameWords.indexOf('of');
+        if (ofIndex !== -1) {
+          nameWords = nameWords.slice(ofIndex + 1);
+        }
+
+        return nameWords.join(' ');
+      }
+
+      this.getCategory = function() {
+        return getProductCategory(this.getConciseName());
+      }
+
+      this.getTotalPrice = function() {
+        return this.amount * this.price;
+      }
+
+      this.getTotalTaxRate = function() {
+        var category = this.getCategory();
+        return getTaxRate('sales', category) + (this.isImported ? getTaxRate('imported', category) : 0);
+      } 
+
+      this.getTax = function() {
+        var category = this.getCategory();
+        return roundTax(this.getTotalPrice() * this.getTotalTaxRate());
+      }
+
+      this.getReceiptLine = function() {
+        var segments = [this.amount];
+        if (this.isImported) {
+          segments.push('imported');
+        }
+        segments.push(this.productName);
+
+        return `${segments.join(' ')}: ${money(this.getTotalPrice() + this.getTax())}`;
+      }
     }
 
     function getProductCategory(name) {
-      /**
-       * internal monologue
-       * 1. find the category list
-       * 2. reverse it
-       * 3. look up
-       */
-
-      var productCategoryMap = reverseCategory(getCategoryList());
-      return productCategoryMap[name] || 'other';
+      return getProductCategoryMap()[name] || 'other';
     }
 
-    function getCategoryList() {
-      return [
-        {
-          categoryName: 'books',
-          products: [
-            'book',
-          ]
-        },
-        {
-          categoryName: 'food',
-          products: [
-            'chocolate bar',
-            'chocolates',
-          ]
-        },
-        {
-          categoryName: 'medical products',
-          products: [
-            'headache pills'
-          ]
-        },
-        {
-          categoryName: 'other', // :)
-          products: [
-            'music CD',
-            'perfume',
-          ]
-        },
-      ];
-    }
-
-    function reverseCategory(list) {
-      return list.reduce((pre, cur) => {
+    function getProductCategoryMap() {
+      return CATEGORY_LIST.reduce((pre, cur) => {
         if (Array.isArray(cur.products)) {
           cur.products.forEach(product => {
             pre[product] = cur.categoryName;
@@ -203,21 +160,8 @@
       }, {});
     }
 
-    function getTaxRateConfig() {
-      return {
-        imported: {
-          rate: 0.05,
-          exemptions: []
-        },
-        sales: {
-          rate: 0.1,
-          exemptions: ['books', 'food', 'medical products']
-        }
-      }
-    }
-
     function getTaxRate(taxType, productCategory) {
-      var config = getTaxRateConfig()[taxType];
+      var config = TAX_RATE_CONFIG[taxType];
       if (config.exemptions.indexOf(productCategory) !== -1) {
         return 0;
       }
@@ -225,18 +169,7 @@
       return config.rate;
     }
 
-    function calculateSalesTax(shopingItem) {
-      return shopingItem.amount * shopingItem.price * getTaxRate('sales', shopingItem.category);
-    }
-
-    function calculateImportedTax(shopingItem) {
-      if (!shopingItem.isImported) {
-        return 0;
-      }
-      return shopingItem.amount * shopingItem.price * getTaxRate('imported', shopingItem.category);
-    }
-
-    function round(number) {
+    function roundTax(number) {
       return Math.ceil(number * 20) / 20;
     }
 
