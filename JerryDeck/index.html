@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jerry Deck challenge</title>
+</head>
+<body>
+</body>
+<script>
+  class RangeList {
+    constructor() {
+      this.values = [];
+    }
+
+    /**
+     * Adds a range to the list
+     * @param {Array<number>} range - Array of two integers that specify beginning and end of range.
+     */
+    add(range) {
+      this.updateByRange(range, true);
+    }
+
+    /**
+     * Removes a range from the list
+     * @param {Array<number>} range - Array of two integers that specify beginning and end of range.
+     */
+    remove(range) {
+      this.updateByRange(range, false);
+    }
+
+    validateInput(range) {
+      if (!Array.isArray(range) || range.length != 2 || range[0] >= range[1]) {
+        return;
+      }
+    }
+
+    updateByRange(range, isAdding) {
+      if (this.validateInput(range)) {
+        return;
+      }
+
+      const [beginning, end] = range;
+      let beginningIndex = this.getBiggestSmallerIndex(beginning);
+      let endIndex = this.getBiggestSmallerIndex(endIndex, beginningIndex);
+      // 不在范围内的情况
+
+      let isBeginningInRange = !(beginningIndex % 2);
+      let isEndInRange = !(endIndex % 2);
+      let spliceStart = isBeginningInRange ? beginningIndex : beginningIndex + 1;
+      let spliceDeleteCount = endIndex - beginningIndex;
+      let spliceNewItems = [];
+      if (isBeginningInRange == isAdding) {
+        spliceNewItems.push(beginning);
+      }
+      if (isEndInRange == isAdding) {
+        spliceNewItems.push(end);
+      }
+
+      this.values = this.values.splice(spliceStart, spliceDeleteCount, ...spliceNewItems);
+    }
+
+    /**
+     * Prints out the list of ranges in the range list
+     */
+    print() {
+      let rangeList = [];
+      for (let i = 0; i < this.values.length; i += 2) {
+        rangeList.push(`[${this.values[i]}, ${this.values[i + 1]})`);
+      }
+      console.log(rangeList.join(' '));
+    }
+
+    // 改为二分法
+    getBiggestSmallerIndex(num, i = 0) {
+      for (i = 0; i < this.values.length; i++) {
+        if (beginning > this.values[i]) {
+          continue;
+        }
+
+        return i;
+      }
+    }
+  }
+</script>
+<html>
